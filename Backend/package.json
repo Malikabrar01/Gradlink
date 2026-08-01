@@ -7,7 +7,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js"
   },
-  "author": "anuj",
+  "author": "Abrar Javid",
   "license": "ISC",
   "description": "",
   "dependencies": {
@@ -18,7 +18,8 @@
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.15.1",
+    "mongodb": "^7.5.0",
+    "mongoose": "^8.24.2",
     "mongoose-aggregate-paginate-v2": "^1.1.4",
     "multer": "^2.0.1",
     "nodemailer": "^7.0.5",

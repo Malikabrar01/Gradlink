@@ -1,2 +1,2 @@
-const Backend_url = "https://gradlink-0aro.onrender.com";
+const Backend_url = "http://localhost:5001";
 export { Backend_url };

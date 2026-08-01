@@ -894,24 +894,24 @@ function LandingPage() {
                 <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
                   <Mail className="h-4 w-4 text-blue-400" />
                 </div>
-                <span className="text-sm text-slate-300">anujkamdar2006@gmail.com</span>
+                <span className="text-sm text-slate-300">malikabrar4477@gmail.com</span>
               </div>
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
                   <Phone className="h-4 w-4 text-blue-400" />
                 </div>
-                <span className="text-sm text-slate-300">+91 9119315581</span>
+                <span className="text-sm text-slate-300">+91 6005077927</span>
               </div>
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
                   <MapPin className="h-4 w-4 text-blue-400" />
                 </div>
-                <span className="text-sm text-slate-300">Jaipur, Rajasthan, India</span>
+                <span className="text-sm text-slate-300">Qazigund, Jammu & Kashmir</span>
               </div>
             </div>
           </div>
           <div className="border-t border-slate-800 mt-16 pt-8 text-center text-slate-400">
-            <p>&copy; 2025 Gradlink   Built with ❤️ for our alumni community.</p>
+            <p>&copy; 2026 Gradlink   Built with for  alumni community.</p>
           </div>
         </div>
       </footer>

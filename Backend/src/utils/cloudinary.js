@@ -20,7 +20,10 @@ const uploadOnCloudinary = async (localFilePath) => {
     fs.unlinkSync(localFilePath); // Delete the local file after upload
     return response;
   } catch (error) {
-    fs.unlinkSync(localFilePath); // Ensure the local file is deleted even if upload fails
+    console.log("Cloudnary error (logo/avatar):", error);
+    if (fs.existsSync(localFilePath)) {
+      fs.unlinkSync(localFilePath); // Ensure the local file is deleted even if upload fails
+    }
   }
 };
 
@@ -37,7 +40,10 @@ const uploadPdfOnCloudinary = async (localFilePath) => {
     return response;
 
   } catch (error) {
+    console.log("Cloudnary error:",error);
+    if (fs.existsSync(localFilePath)) {
     fs.unlinkSync(localFilePath);
+    }
   }
 };
 
