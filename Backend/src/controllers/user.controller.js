@@ -16,6 +16,7 @@ import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 import { sendMail } from "../utils/SendMailUtil.js";
 import { sendWelcomeEmail } from "../utils/EmailService.js";
+import { notifyUser } from "../utils/socket.js";
 
 const options = {
   httpOnly: true,
@@ -171,14 +172,10 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Email and password are required");
   }
   const user = await User.findOne({ email });
-  if (!user) {
-    throw new ApiError(404, "User does not exist");
-  }
-
-  const isPassValid = await user.isPasswordCorrect(password);
-  if (!isPassValid) {
-    throw new ApiError(401, "Invalid password");
-  }
+  const isPassValid = user ? await user.isPasswordCorrect(password) : false;
+  if (!user || !isPassValid) {
+  throw new ApiError(401, "Invalid email or password");
+}
 
   const accessToken = user.generateAccessToken();
   const refreshToken = user.generateRefreshToken();
@@ -437,6 +434,12 @@ const createJobApplication = asyncHandler(async (req, res) => {
   // Add user to job applicants list
   await Job.findByIdAndUpdate(jobId, {
     $addToSet: { applicants: userApplying },
+  });
+
+  notifyUser(job.postedBy, {
+  type: "application",
+  message: `${req.user.fullname} applied for ${job.title}`,
+  link: `/tabs/applications/${jobId}`,
   });
 
   setImmediate(async () => {
@@ -970,6 +973,13 @@ const updateJobApplicationStatus = asyncHandler(async (req, res) => {
   }
   application.status = status;
   await application.save();
+  if (status !== "pending") {
+  notifyUser(application.appliedBy, {
+    type: "status",
+    message: `Your application for ${job.title} was ${status}`,
+    link: "/tabs/my-applications",
+  });
+ }
   return res.status(200).json(new ApiResponse(200, status, "Application status updated successfully"));
 });
 
@@ -1286,6 +1296,13 @@ const toggleLike = asyncHandler(async (req, res) => {
     post.likes.push(userId);
   }
   await post.save();
+  if (!isLiked && post.author && String(post.author) !== String(userId)) {
+  notifyUser(post.author, {
+    type: "like",
+    message: `${req.user.fullname} liked your post`,
+    link: "/tabs/posts",
+   });
+  }
   return res
     .status(200)
     .json(new ApiResponse(200, post, isLiked ? "Post unliked successfully" : "Post liked successfully"));
@@ -1311,6 +1328,14 @@ const addComment = asyncHandler(async (req, res) => {
   if (!comment) {
     throw new ApiError(500, "Comment creation failed");
   }
+  if (post.author && String(post.author) !== String(req.user._id)) {
+  notifyUser(post.author, {
+    type: "comment",
+    message: `${req.user.fullname} commented on your post`,
+    link: "/tabs/posts",
+  });
+  }
+
   return res.status(201).json(new ApiResponse(201, comment, "Comment added successfully"));
 });
 
@@ -1407,7 +1432,7 @@ const createPaymentIntent = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Fundraiser ID and amount are required");
   }
 
-  if (amount <= 0) {
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
     throw new ApiError(400, "Amount must be greater than 0");
   }
 
@@ -1426,7 +1451,7 @@ const createPaymentIntent = asyncHandler(async (req, res) => {
 
   try {
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount * 100,
+      amount: Math.round(Number(amount) * 100),
       currency: "inr",
       metadata: {
         fundraiserId: fundraiserId,
@@ -1441,49 +1466,61 @@ const createPaymentIntent = asyncHandler(async (req, res) => {
     throw new ApiError(500, error.message || "Failed to create payment intent");
   }
 });
-
 const saveDonation = asyncHandler(async (req, res) => {
-  const { fundraiserId, amount, paymentIntentId } = req.body;
-  if (!fundraiserId || !amount || !paymentIntentId) {
-    throw new ApiError(400, "Fundraiser ID, amount, and payment intent ID are required");
+  const { fundraiserId, paymentIntentId } = req.body;
+  if (!fundraiserId || !paymentIntentId) {
+    throw new ApiError(400, "Fundraiser ID and payment intent ID are required");
+  }
+  if (!mongoose.isValidObjectId(fundraiserId)) {
+    throw new ApiError(400, "Invalid fundraiser ID format");
   }
 
-  // Verify the payment intent status with Stripe
+  let paymentIntent;
   try {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-    if (paymentIntent.status !== "succeeded") {
-      throw new ApiError(400, "Payment has not been completed successfully");
-    }
-
-    // Verify the amount matches
-    if (paymentIntent.amount !== amount * 100) {
-      throw new ApiError(400, "Payment amount doesn't match the donation amount");
-    }
+    paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
   } catch (error) {
-    throw new ApiError(500, `Failed to verify payment intent: ${error.message}`);
+    throw new ApiError(400, "Invalid payment intent");
   }
 
-  const donation = await Donation.create({
-    fundraiser: fundraiserId,
-    donor: req.user._id,
-    amount: amount,
-    paymentIntentId: paymentIntentId,
-    college: req.user.college,
-  });
-
-  if (!donation) {
-    throw new ApiError(500, "Failed to save donation");
+  if (paymentIntent.status !== "succeeded") {
+    throw new ApiError(400, "Payment has not been completed successfully");
   }
 
-  // Update the fundraiser's total amount raised
-  await Fundraiser.findByIdAndUpdate(fundraiserId, {
-    $inc: { currentAmount: amount },
-  });
+  const meta = paymentIntent.metadata || {};
+  if (meta.fundraiserId !== String(fundraiserId) || meta.userId !== String(req.user._id)) {
+    throw new ApiError(403, "This payment does not belong to this donation");
+  }
+
+  const fundraiser = await Fundraiser.findById(fundraiserId);
+  if (!fundraiser) {
+    throw new ApiError(404, "Fundraiser not found");
+  }
+  if (fundraiser.college.toString() !== req.user.college.toString()) {
+    throw new ApiError(403, "You are not allowed to donate to this fundraiser");
+  }
+
+  const amount = paymentIntent.amount / 100; // from Stripe, not the client
+
+  let donation;
+  try {
+    donation = await Donation.create({
+      fundraiser: fundraiserId,
+      donor: req.user._id,
+      amount,
+      paymentIntentId,
+      college: req.user.college,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new ApiError(409, "This donation has already been recorded");
+    }
+    throw error;
+  }
+
+  await Fundraiser.findByIdAndUpdate(fundraiserId, { $inc: { currentAmount: amount } });
 
   return res.status(201).json(new ApiResponse(201, donation, "Donation saved successfully"));
 });
-
 const getMyDonations = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 

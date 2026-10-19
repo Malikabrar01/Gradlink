@@ -21,6 +21,7 @@ const donationSchema = new Schema(
     paymentIntentId: {
       type: String,
       required: true,
+      unique: true,
     },
   },
   { timestamps: true }

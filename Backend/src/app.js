@@ -1,3 +1,5 @@
+import fs from "fs";
+import { allowedOrigins } from "./config/origins.js";
 import express from "express";
 import CookieParser from "cookie-parser";
 import cors from "cors";
@@ -6,7 +8,7 @@ import { ApiError } from "./utils/ApiError.js";
 const app = express();
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -20,6 +22,10 @@ import userRouter from "./routes/user.routes.js";
 app.use("/gradlink/api/v1/users", userRouter);
 
 app.use((err, req, res, next) => {
+  const uploaded = [req.file, ...Object.values(req.files || {}).flat()].filter(Boolean);
+  uploaded.forEach((f) => {
+  if (f.path && fs.existsSync(f.path)) fs.unlink(f.path, () => {});
+  });
   let customError = err;
 
   // If it's not an ApiError, convert it

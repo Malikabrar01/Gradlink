@@ -2,21 +2,17 @@ import "dotenv/config";
 
 import connectDB from "./db/index.js";
 import { app } from "./app.js";
-import { createServer } from 'node:http';
-import { Server } from 'socket.io';
+import { createServer } from "node:http";
+import { initSocket } from "./utils/socket.js";
 
 const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: ["http://localhost:5173", "https://gradlink-neon.vercel.app"],
-    credentials: true,
-  },
-});
+initSocket(server);
 
 connectDB()
   .then(() => {
-    app.listen(process.env.PORT || 8000, () => {
-      console.log(`Server is running on port : ${process.env.PORT}`);
+    const port = process.env.PORT || 8000;
+    server.listen(port, () => {
+      console.log(`Server is running on port : ${port}`);
     });
   })
   .catch((error) => {
