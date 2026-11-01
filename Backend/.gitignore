@@ -123,3 +123,7 @@ dist
 public/*
 !public/.gitkeep
 .DS_Store
+
+.env
+.env.*
+!.env.example
